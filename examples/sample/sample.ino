@@ -1,27 +1,25 @@
 
 
-#include "ESP8266ConfigurationWizard.hpp"
+#include "ESPConfigurationWizard.hpp"
 
 
 PubSubClient* _mqttClinet;
-ESP8266ConfigurationWizard _ESP8266ConfigurationWizard;
+ESPConfigurationWizard _ESPConfigurationWizard;
 
 void setup() {
-  //WiFi.begin("beom_unifi2.4", "20181028");
-
   Serial.begin(57600);
   
-  Config* config = _ESP8266ConfigurationWizard.getConfigPt();
-  config->addOption("DeviceName","ESP8266ConfigurationWizard", false);
+  Config* config = _ESPConfigurationWizard.getConfigPt();
+  config->addOption("DeviceName","ESPConfigurationWizard", false);
   config->addOption("Key","", false);
   config->addOption("Taste","", true);
 
 
-  _ESP8266ConfigurationWizard.setOnFilterOption(onFilterOption);
-  _ESP8266ConfigurationWizard.setOnStatusCallback(onStatusCallback);
+  _ESPConfigurationWizard.setOnFilterOption(onFilterOption);
+  _ESPConfigurationWizard.setOnStatusCallback(onStatusCallback);
   // connection mode. If there is no value required for connection, it automatically switches to configuration mode.
-   _mqttClinet = _ESP8266ConfigurationWizard.pubSubClient();
-   _ESP8266ConfigurationWizard.connect();
+   _mqttClinet = _ESPConfigurationWizard.pubSubClient();
+   _ESPConfigurationWizard.connect();
 
    
   Serial.println("printConfig");
@@ -29,7 +27,7 @@ void setup() {
   Serial.println("printConfigEnd");
    
   // Enter configuration mode.
-  // _ESP8266ConfigurationWizard.startConfigurationMode();
+  // _ESPConfigurationWizard.startConfigurationMode();
   
 }
 
@@ -67,10 +65,10 @@ void onStatusCallback(int status) {
   else if(status == STATUS_OK) {
     Serial.println("All connections are fine.");
 
-    int day = _ESP8266ConfigurationWizard.getDay();
-   int hour = _ESP8266ConfigurationWizard.getHours();
-   int min = _ESP8266ConfigurationWizard.getMinutes();
-   int sec = _ESP8266ConfigurationWizard.getSeconds();
+    int day = _ESPConfigurationWizard.getDay();
+   int hour = _ESPConfigurationWizard.getHours();
+   int min = _ESPConfigurationWizard.getMinutes();
+   int sec = _ESPConfigurationWizard.getSeconds();
 
     //_mqttClinet->setCallback(callbackSubscribe);
     //_mqttClinet->subscribe("topic");
@@ -98,7 +96,7 @@ const char* onFilterOption(const char* name, const char* value) {
 }
 
 void loop() {
-  _ESP8266ConfigurationWizard.loop();
-  if(_ESP8266ConfigurationWizard.isConfigurationMode()) return;
+  _ESPConfigurationWizard.loop();
+  if(_ESPConfigurationWizard.isConfigurationMode()) return;
   
 }

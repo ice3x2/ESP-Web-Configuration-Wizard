@@ -1,8 +1,19 @@
 #ifndef ESPCONFIGURATIONWIZARD.HPP
 #define ESPCONFIGURATIONWIZARD.HPP
 
+//#define _DEBUG_
 
-#include <ESP8266WebServer.h>
+
+#ifdef ESP8266
+	#include <ESP8266WebServer.h>
+	#include <LittleFS.h>
+#else 
+	#include <WebServer.h>
+	#include <LITTLEFS.h>
+	#include <WiFi.h>
+	#define WIFILED 32
+#endif 
+
 #include <WiFiClient.h>
 #include <WiFiUdp.h>
 #include <WifiServer.h>
@@ -22,9 +33,9 @@
 #define VALUE_BUFFER_SIZE 512
 
 
-#define MQTT_RECONNECT_INTERVAL 3000
-#define MQTT_SOCKET_TIMEOUT 3000
-#define MQTT_KEPP_ALIVE 1000
+#define MQTT_RECONNECT_INTERVAL 5000
+#define MQTT_SOCKET_TIMEOUT 5
+#define MQTT_KEPP_ALIVE 5
 
 #define NTP_RECONNECT_INTERVAL 500
 
@@ -59,13 +70,18 @@
 
 #define STATUS_CONFIGURATION 7
 
-class ESP8266ConfigurationWizard {
+
+class ESPConfigurationWizard {
 
   private :
 
     WiFiUDP _udp;
     WiFiClient _wifiClient; 
-    ESP8266WebServer* _webServer;
+	#ifdef ESP8266
+	ESP8266WebServer* _webServer;
+	#else 
+	WebServer* _webServer;
+	#endif 
     NTPClient* _ntpClient;
 	PubSubClient _mqtt;
     Config _config;
@@ -85,11 +101,12 @@ class ESP8266ConfigurationWizard {
     status_callback _onStatusCallback = NULL;
 
     long _startWiFiConnectMillis;
+	unsigned long _lastRetried = 0;
     
 
 
  public:
-    ESP8266ConfigurationWizard();
+    ESPConfigurationWizard();
     void setOnFilterOption(option_filter filter);
     void setOnStatusCallback(status_callback callback);
     Config& getConfig();
@@ -117,6 +134,7 @@ class ESP8266ConfigurationWizard {
   void setStatus(int status);
   void connectWiFi();
   bool connectMQTT();
+  
   bool connectNTP(const char* ntpServer,long timeOffset, unsigned long interval );
   void releaseWebServer();
   
@@ -165,46 +183,46 @@ class ESP8266ConfigurationWizard {
 
 
 
-ESP8266ConfigurationWizard::ESP8266ConfigurationWizard() : _webServer(NULL), _ntpClient(NULL)
+ESPConfigurationWizard::ESPConfigurationWizard() : _webServer(NULL), _ntpClient(NULL)
 {
 	_mqtt.setClient(_wifiClient);
   
 }
 
-void ESP8266ConfigurationWizard::setOnFilterOption(option_filter filter) {
+void ESPConfigurationWizard::setOnFilterOption(option_filter filter) {
   _onFilterOption = filter;
 }
 
-void ESP8266ConfigurationWizard::setOnStatusCallback(status_callback callback) {
+void ESPConfigurationWizard::setOnStatusCallback(status_callback callback) {
   _onStatusCallback = callback;
 }
 
-Config& ESP8266ConfigurationWizard::getConfig() {
+Config& ESPConfigurationWizard::getConfig() {
   return _config;
 }
 
-Config* ESP8266ConfigurationWizard::getConfigPt() {
+Config* ESPConfigurationWizard::getConfigPt() {
   return &_config;
 }
 
-void ESP8266ConfigurationWizard::setConfig(Config config) {
+void ESPConfigurationWizard::setConfig(Config config) {
   _config = config;
 }
 
 
-bool ESP8266ConfigurationWizard::available() {
+bool ESPConfigurationWizard::available() {
   return availableWifi() && availableNTP() && availableMqtt();
 }
 
-bool ESP8266ConfigurationWizard::availableNTP() {
+bool ESPConfigurationWizard::availableNTP() {
   return _ntpClient != NULL && _ntpClient->isTimeSet();
 }
 
-bool ESP8266ConfigurationWizard::availableMqtt() {
+bool ESPConfigurationWizard::availableMqtt() {
   return _mqtt.connected();
 }
 
-bool ESP8266ConfigurationWizard::availableWifi() {
+bool ESPConfigurationWizard::availableWifi() {
   if(WiFi.status() == WL_CONNECTED) {
     return true;  
   }
@@ -212,7 +230,7 @@ bool ESP8266ConfigurationWizard::availableWifi() {
 }
 
 
-void ESP8266ConfigurationWizard::connect() {
+void ESPConfigurationWizard::connect() {
   
   if(!loadConfig()) {
     startConfigurationMode();
@@ -262,21 +280,21 @@ void ESP8266ConfigurationWizard::connect() {
   
 }
 
-void ESP8266ConfigurationWizard::startConfigurationMode() {
+void ESPConfigurationWizard::startConfigurationMode() {
   _mode = MODE_CONFIGURATION;
   setStatus(STATUS_CONFIGURATION);
   initConfigurationMode();
 }
 
-bool ESP8266ConfigurationWizard::isConfigurationMode() {
+bool ESPConfigurationWizard::isConfigurationMode() {
   return _mode == MODE_CONFIGURATION;
 }
 
-PubSubClient* ESP8266ConfigurationWizard::pubSubClient() {
+PubSubClient* ESPConfigurationWizard::pubSubClient() {
     return &_mqtt;
 }
 
-void ESP8266ConfigurationWizard::loop() {
+void ESPConfigurationWizard::loop() {
 
 	if(_mode == MODE_CONFIGURATION) {
 		_webServer->handleClient();
@@ -288,6 +306,7 @@ void ESP8266ConfigurationWizard::loop() {
 		  return;
 		} else {
 		  setStatus(WIFI_ERROR);
+		  return;
 		}   	
 	} else if(!availableWifi()) {
 		setStatus(WIFI_CONNECT_TRY);
@@ -304,6 +323,7 @@ void ESP8266ConfigurationWizard::loop() {
 	if(!availableNTP()) {
 	  setStatus(NTP_CONNECT_TRY);
 	  connectNTP(_config.getNTPServer(), _config.getTimeOffset(), (long)_config.getNTPUpdateInterval() * 60000L);
+	  delay(1000);
 	  if(!availableNTP()) {
 		setStatus(NTP_ERROR);
 		return;
@@ -319,8 +339,9 @@ void ESP8266ConfigurationWizard::loop() {
 	_ntpClient->update();
 
 
-	if(!availableMqtt()) {
+	if(!availableMqtt() && (_lastRetried == 0 || millis() -  _lastRetried >= MQTT_RECONNECT_INTERVAL)) {
 	  setStatus(MQTT_CONNECT_TRY);
+	  _lastRetried = millis();
 	  connectMQTT();
 	  if(!availableMqtt()) {
 		setStatus(MQTT_ERROR);
@@ -338,33 +359,33 @@ void ESP8266ConfigurationWizard::loop() {
 }
 
 
-int ESP8266ConfigurationWizard::getHours() {
+int ESPConfigurationWizard::getHours() {
   if(_ntpClient == NULL) return -1;
   return _ntpClient->getHours();
 }
 
-int ESP8266ConfigurationWizard::getMinutes() {
+int ESPConfigurationWizard::getMinutes() {
   if(_ntpClient == NULL) return -1;
   return _ntpClient->getMinutes();
 }
 
-int ESP8266ConfigurationWizard::getSeconds() {
+int ESPConfigurationWizard::getSeconds() {
   if(_ntpClient == NULL) return -1;
   return _ntpClient->getSeconds();
 }
 
-int ESP8266ConfigurationWizard::getDay() {
+int ESPConfigurationWizard::getDay() {
  if(_ntpClient == NULL) return -1;
   return _ntpClient->getDay();
 }
 
-unsigned long ESP8266ConfigurationWizard::getEpochTime() {
+unsigned long ESPConfigurationWizard::getEpochTime() {
   if(_ntpClient == NULL) return -1;
   return _ntpClient->getEpochTime();
 }
 
 
-void ESP8266ConfigurationWizard::setStatus(int status) {
+void ESPConfigurationWizard::setStatus(int status) {
   if(_status == status) {
     return;
   }
@@ -374,13 +395,14 @@ void ESP8266ConfigurationWizard::setStatus(int status) {
   }
 }
 
-void ESP8266ConfigurationWizard::connectWiFi() {
+void ESPConfigurationWizard::connectWiFi() {
     _startWiFiConnectMillis = millis();
     WiFi.mode(WIFI_STA);
     WiFi.begin(_config.getWiFiSSID(), _config.getWiFiPassword());
 }
 
-bool ESP8266ConfigurationWizard::connectMQTT() {      
+
+bool ESPConfigurationWizard::connectMQTT() {      
     const char* server = _config.getMQTTAddress();
     int port = _config.getMQTTPort();
     const char* id = _config.getMQTTClientID();
@@ -426,7 +448,7 @@ bool ESP8266ConfigurationWizard::connectMQTT() {
     return true;
   }
 
-  bool ESP8266ConfigurationWizard::connectNTP(const char* ntpServer,long timeOffset, unsigned long interval ) {
+  bool ESPConfigurationWizard::connectNTP(const char* ntpServer,long timeOffset, unsigned long interval ) {
     if(_ntpClient != NULL) {
         _ntpClient->end();
         delete _ntpClient;
@@ -455,7 +477,7 @@ bool ESP8266ConfigurationWizard::connectMQTT() {
   }
 
 
-  void ESP8266ConfigurationWizard::releaseWebServer() {
+  void ESPConfigurationWizard::releaseWebServer() {
     if(_webServer != NULL) {
         _webServer->close();
         _webServer->stop();
@@ -464,7 +486,7 @@ bool ESP8266ConfigurationWizard::connectMQTT() {
     }
   }
 
-  void ESP8266ConfigurationWizard::initConfigurationMode()  {
+  void ESPConfigurationWizard::initConfigurationMode()  {
 	#ifdef _DEBUG_ 
 	Serial.println("initConfigurationMode()");
 	#endif
@@ -474,7 +496,11 @@ bool ESP8266ConfigurationWizard::connectMQTT() {
         _ntpClient = NULL;
     }
     releaseWebServer();
-    _webServer = new ESP8266WebServer(80);
+    #ifdef ESP8266
+	_webServer = new ESP8266WebServer(80);
+	#else 
+	_webServer = new WebServer(80);
+	#endif 
 
     WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(_config.getAPName(), "");
@@ -530,35 +556,68 @@ bool ESP8266ConfigurationWizard::connectMQTT() {
 }
 
 
-String ESP8266ConfigurationWizard::resultStringFromEncryptionType(int thisType) {
+String ESPConfigurationWizard::resultStringFromEncryptionType(int thisType) {
   switch (thisType) {
-    case ENC_TYPE_WEP:
+    #ifdef ESP8266
+	case ENC_TYPE_WEP:
+	#else 
+	case WIFI_AUTH_WEP:
+	#endif 
       return "WEP";
       break;
-    case ENC_TYPE_TKIP:
+	  
+	 
+	#ifdef ESP8266
+	case ENC_TYPE_TKIP:
+	#else 
+	case WIFI_AUTH_WPA_PSK:
+	#endif 
       return "WPA";
       break;
-    case ENC_TYPE_CCMP:
+	
+	
+	#ifdef ESP8266
+	case ENC_TYPE_CCMP:
+	#else 
+	case WIFI_AUTH_WPA2_PSK:
+	#endif 
       return "WPA2";
       break;
-    case ENC_TYPE_NONE:
+	  
+	
+	#ifdef ESP32
+	case WIFI_AUTH_WPA_WPA2_PSK:
+		return "WWPA2";
+        break;
+	case WIFI_AUTH_WPA2_ENTERPRISE:
+		return "WPA2ENT";
+      break;
+	#endif 
+	
+	
+	#ifdef ESP8266
+	case ENC_TYPE_NONE:
+	#else 
+	case WIFI_AUTH_OPEN:
+	#endif 
       return "None";
       break;
-    case ENC_TYPE_AUTO:
+	  
+    default:
       return "Auto";
       break;
   }
 }
 
 
-void ESP8266ConfigurationWizard::sendBadRequest() 
+void ESPConfigurationWizard::sendBadRequest() 
 {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
     _webServer->send(400, "text/plain", "Bad Request");
 }
 
 
-  void ESP8266ConfigurationWizard::onHttpRequestScanWifiCount() {
+  void ESPConfigurationWizard::onHttpRequestScanWifiCount() {
     WiFi.mode(WIFI_AP_STA);
     int n = WiFi.scanNetworks();
     _wifiCount = n;
@@ -570,7 +629,7 @@ void ESP8266ConfigurationWizard::sendBadRequest()
     _webServer->send(200, "application/json", result);
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestScanWifiItem() {
+void ESPConfigurationWizard::onHttpRequestScanWifiItem() {
     String strCount =  _webServer->arg("count");
     int count = strCount.toInt();
     
@@ -594,7 +653,7 @@ void ESP8266ConfigurationWizard::onHttpRequestScanWifiItem() {
 
 
 
-void ESP8266ConfigurationWizard::onHttpRequestScanWifi() {
+void ESPConfigurationWizard::onHttpRequestScanWifi() {
     WiFi.mode(WIFI_AP_STA);
     int n = WiFi.scanNetworks();
     String result = "";
@@ -621,60 +680,60 @@ void ESP8266ConfigurationWizard::onHttpRequestScanWifi() {
 
 
 
-void ESP8266ConfigurationWizard::onHttpRequestWifiHtml() {
+void ESPConfigurationWizard::onHttpRequestWifiHtml() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "text/html", RES_WIFI_HTML); 
 }
 
 
-void ESP8266ConfigurationWizard::onHttpRequestTimeHtml() {
+void ESPConfigurationWizard::onHttpRequestTimeHtml() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "text/html", RES_TIME_HTML); 
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestMqttHtml() {
+void ESPConfigurationWizard::onHttpRequestMqttHtml() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "text/html", RES_MQTT_HTML); 
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestOptionHtml() {
+void ESPConfigurationWizard::onHttpRequestOptionHtml() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "text/html", RES_OPTION_HTML); 
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestFinishHtml() {
+void ESPConfigurationWizard::onHttpRequestFinishHtml() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "text/html", RES_FINISH_HTML); 
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestAppJs() {
+void ESPConfigurationWizard::onHttpRequestAppJs() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "text/javascript", RES_APP_JS); 
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestEnvJs() {
+void ESPConfigurationWizard::onHttpRequestEnvJs() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "text/javascript", RES_ENV_JS); 
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestAjaxJs() {
+void ESPConfigurationWizard::onHttpRequestAjaxJs() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "text/javascript", RES_AJAX_JS); 
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestMainCss() {
+void ESPConfigurationWizard::onHttpRequestMainCss() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "text/css", RES_MAIN_CSS); 
 }
 
 
-void ESP8266ConfigurationWizard::onHttpRequestInfo() {
+void ESPConfigurationWizard::onHttpRequestInfo() {
   IPAddress myIP = WiFi.localIP();
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "application/json", String("{\"connected\":") +  ( (WiFi.status() != WL_CONNECTED) ? "false" : "true" )  +  ",\"ip\":\"" + myIP.toString()  + "\",\"version\":\"" + _config.version()  + "\",\"ssid\":\"" + _config.getWiFiSSID() + "\",\"device\":\"" + _config.getDeviceName() + "\"}"); 
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestCommit() {
+void ESPConfigurationWizard::onHttpRequestCommit() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   if(saveConfig()) {
       _webServer->send(200, "application/json", "{\"success\":true}");
@@ -687,7 +746,7 @@ void ESP8266ConfigurationWizard::onHttpRequestCommit() {
 
 
 
-void ESP8266ConfigurationWizard::onHttpRequestWifiConnect()  {
+void ESPConfigurationWizard::onHttpRequestWifiConnect()  {
   
   String ssid = _webServer->arg("ssid");
   String password = _webServer->arg("password");
@@ -702,8 +761,8 @@ void ESP8266ConfigurationWizard::onHttpRequestWifiConnect()  {
       return;
   }
   
-  if(password.length() <= 0)  WiFi.begin(ssid);
-  else WiFi.begin(ssid, password);
+  if(password.length() <= 0)  WiFi.begin(ssid.c_str());
+  else WiFi.begin(ssid.c_str(), password.c_str());
   
   
   long current = millis();
@@ -729,7 +788,7 @@ void ESP8266ConfigurationWizard::onHttpRequestWifiConnect()  {
 
 
 
-void ESP8266ConfigurationWizard::onHttpRequestMqttConnect()  {
+void ESPConfigurationWizard::onHttpRequestMqttConnect()  {
     String server = _webServer->arg("url");
     String portStr = _webServer->arg("port");
     String user = _webServer->arg("muser");
@@ -769,7 +828,7 @@ void ESP8266ConfigurationWizard::onHttpRequestMqttConnect()  {
 }
 
 
-  void ESP8266ConfigurationWizard::onHttpRequestMqttInfo()  {
+  void ESPConfigurationWizard::onHttpRequestMqttInfo()  {
     _webServer->sendHeader("Access-Control-Allow-Origin", "*");
     _webServer->send(200, "application/json", String("{\"success\":true, \"url\":\"") +  _config.getMQTTAddress() + "\", \"port\":" + _config.getMQTTPort() +  ",\"muser\":\"" + _config.getMQTTUser() + "\",\"mpass\":\"" + _config.getMQTTPassword() + "\",\"mid\":\"" + _config.getMQTTClientID() +  "\"  }");
 }
@@ -777,7 +836,7 @@ void ESP8266ConfigurationWizard::onHttpRequestMqttConnect()  {
 
 
 
-void ESP8266ConfigurationWizard::onHttpRequestSelectedSSID() {
+void ESPConfigurationWizard::onHttpRequestSelectedSSID() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "application/json", String("{\"success\":true, \"ssid\":\"") +  _config.getWiFiSSID() + "\"}" );
 }
@@ -787,12 +846,12 @@ void ESP8266ConfigurationWizard::onHttpRequestSelectedSSID() {
 
 
 
-void ESP8266ConfigurationWizard::onHttpRequestNTPInfo() {
+void ESPConfigurationWizard::onHttpRequestNTPInfo() {
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _webServer->send(200, "application/json", String("{\"success\":true, \"ntp\":\"") +  _config.getNTPServer() + "\", \"interval\":" + _config.getNTPUpdateInterval() +  ",\"offset\":" + _config.getTimeOffset() + "}");
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestSetNTP() {
+void ESPConfigurationWizard::onHttpRequestSetNTP() {
   String ntpServer = _webServer->arg("ntp");
   String strTimeOffset = _webServer->arg("offset");
   long interval = atol(_webServer->arg("interval").c_str());
@@ -816,14 +875,14 @@ void ESP8266ConfigurationWizard::onHttpRequestSetNTP() {
 }
 
 
-void ESP8266ConfigurationWizard::onHttpRequestOptionCount() {
+void ESPConfigurationWizard::onHttpRequestOptionCount() {
   int count = _config.getOptionCount();
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
   _config.beginOption();
   _webServer->send(200,"application/json", String("{\"success\":true, \"cnt\":" + String(count) + "}"));
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestSetOption() {
+void ESPConfigurationWizard::onHttpRequestSetOption() {
   String name = _webServer->arg("name");
   String value = _webServer->arg("value");
   _webServer->sendHeader("Access-Control-Allow-Origin", "*");
@@ -841,7 +900,7 @@ void ESP8266ConfigurationWizard::onHttpRequestSetOption() {
   _webServer->send(200,"application/json", String("{\"success\":false}"));
 }
 
-void ESP8266ConfigurationWizard::onHttpRequestGetOption() {
+void ESPConfigurationWizard::onHttpRequestGetOption() {
    UserOption* option = _config.nextOption();
    const char* value = option == NULL ? "" : option->getValue();
    value = strlen(value) == 0 && option != NULL ? option->getDefaultValue() : value;
@@ -851,10 +910,16 @@ void ESP8266ConfigurationWizard::onHttpRequestGetOption() {
 }
 
 
-bool ESP8266ConfigurationWizard::saveConfig() {
+bool ESPConfigurationWizard::saveConfig() {
+		#ifdef ESP8266
 		if(!LittleFS.begin()){
 			return false;
 		}
+		#else
+		if(!LITTLEFS.begin(true)){
+			return false;
+		}
+		#endif
 
 		char NTPUpdateIntervalBuf[16];
 		char offsetBuf[16];
@@ -866,10 +931,14 @@ bool ESP8266ConfigurationWizard::saveConfig() {
 		ltoa(_config.getTimeOffset(), offsetBuf,10);
 		ltoa(_config.getMQTTPort(), mqttPortBuf,10);
 
-
-		LittleFS.remove("/config002.dat");
+		#ifdef ESP8266
 		LittleFS.remove(CONFIG_FILENAME);
 		File configFile = LittleFS.open(CONFIG_FILENAME, "w");
+		#else 
+		LITTLEFS.remove(CONFIG_FILENAME);
+		File configFile = LITTLEFS.open(CONFIG_FILENAME, "w");
+		#endif
+		
 		if (!configFile) {
 			#ifdef _DEBUG_ 
 			Serial.println("Failed to open config file for writing");
@@ -904,7 +973,7 @@ bool ESP8266ConfigurationWizard::saveConfig() {
     }
 	
 	
-	bool ESP8266ConfigurationWizard::saveConfigOptions(File* file) {    
+	bool ESPConfigurationWizard::saveConfigOptions(File* file) {    
 		int optionCount=_config.getOptionCount();
 		char optionCountBuffer[16];
 		memset(optionCountBuffer, '\0', 16);
@@ -923,17 +992,28 @@ bool ESP8266ConfigurationWizard::saveConfig() {
     }
 	
 	
-	void ESP8266ConfigurationWizard::writeLineInConfigFile(File* file, const char* value) {
-		file->write(value, strlen(value));
-		file->write("\n", 1);
+	void ESPConfigurationWizard::writeLineInConfigFile(File* file, const char* value) {
+		#ifdef ESP8266
+			file->write(value, strlen(value));
+			file->write("\n", 1);
+		#else 
+			file->write((const uint8_t*)value, strlen(value));
+			file->write((const uint8_t*)"\n", 1);
+		#endif 
 	}
 	
 	
 	 
-    bool ESP8266ConfigurationWizard::loadConfig() {
+    bool ESPConfigurationWizard::loadConfig() {
+		#ifdef ESP8266
 		if(!LittleFS.begin()){
 			return false;
 		}
+		#else 
+		if(!LITTLEFS.begin(true)){
+			return false;
+		}
+		#endif
 
 		char buffer[VALUE_BUFFER_SIZE];      
 		memset(buffer, '\0', VALUE_BUFFER_SIZE);
@@ -941,7 +1021,13 @@ bool ESP8266ConfigurationWizard::saveConfig() {
 		Serial.println("Load file");
 		Serial.println(CONFIG_FILENAME);
 		#endif
+		
+		#ifdef ESP8266
 		File configFile = LittleFS.open(CONFIG_FILENAME, "r");
+		#else 
+		File configFile = LITTLEFS.open(CONFIG_FILENAME, "r");
+		#endif
+		
 		
 
 		if (!configFile) {
@@ -1036,7 +1122,7 @@ bool ESP8266ConfigurationWizard::saveConfig() {
 		return true;
     }
 	
-	bool ESP8266ConfigurationWizard::loadConfigOptions(File *file, char* buffer) {
+	bool ESPConfigurationWizard::loadConfigOptions(File *file, char* buffer) {
 		
 	  bool isReadName = true; 
 	  
@@ -1064,7 +1150,7 @@ bool ESP8266ConfigurationWizard::saveConfig() {
 
     }
 
-	char* ESP8266ConfigurationWizard::readLineInConfigFile(File* file, char* buffer) {
+	char* ESPConfigurationWizard::readLineInConfigFile(File* file, char* buffer) {
 		memset(buffer, '\0', VALUE_BUFFER_SIZE);
 		int cnt = 0;
 		while(file->available()){

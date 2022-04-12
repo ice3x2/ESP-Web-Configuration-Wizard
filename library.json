@@ -1,12 +1,12 @@
 {
-    "name": "ESP8266WebConfigurationWizard",
+    "name": "ESPWebConfigurationWizard",
     "keywords": "mqtt, iot",
-    "description": "This is a wizard tool that allows you to configure the ESP8266's WiFi connection, NTP, MQTT, and Options via web.",
+    "description": "This is a wizard tool that allows you to configure the ESP8266, ESP32 WiFi connection, NTP, MQTT, and Options via web.",
     "repository": {
         "type": "git",
         "url": "https://github.com/ice3x2/ESP8266WebConfig.git"
     },
-    "version": "0.9.0",
+    "version": "0.9.1",
     "authors": {
         "name": "beom"
     },
@@ -14,6 +14,6 @@
     "examples": "examples/*/*.ino",
     "frameworks": "arduino",
     "platforms": [
-        "espressif8266"
+        "espressif8266","espressif32"
     ]
 }

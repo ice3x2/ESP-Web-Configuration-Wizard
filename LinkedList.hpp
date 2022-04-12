@@ -6,14 +6,11 @@
 /**
  *  [[example[[
   LinkedList<int> list;
-
   list.Append(1);
   list.Append(2);
   list.Append(3);
   list.Append(4);
-
   int my_integer;
-
   if(list.moveToStart())
     do{
         my_integer = list.getCurrent();

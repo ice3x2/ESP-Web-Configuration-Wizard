@@ -90,7 +90,7 @@ Config::Config() : _ssid(""), _pass(""), _mqttAddress(""),_ntpServer("")   {
   _version = "0.0.0";
   _deviceName = "My Device";
 
-  _apName = "ESP8266 Configuration";
+  _apName = "ESP Configuration";
   
   _ssid = ""; // ssid, 공유기의 이름
   _pass = ""; // ap password, 공유기 접속 비번.
