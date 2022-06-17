@@ -6,8 +6,8 @@
 
 ## 의존성 (Dependency)
   * PubSubClient >= 2.8.0
-  * NTPClient >= 3.2.0 (반드시 이 곳에서 다운로드 https://github.com/arduino-libraries/NTPClient)
-  * LittleFS_esp32 >= 1.0.6
+  * NTPClient >= 3.2.0 (https://github.com/arduino-libraries/NTPClient)
+  * ~LittleFS_esp32 >= 1.0.6~ (ESP32 모듈에 내장된 SPIFFS 를 사용합니다.)
 
 ## 라이브러리 적용방법
   1. https://github.com/arduino-libraries/NTPClient 로 접속하여 프로젝트를 다운로드 받아 압축을 풀고 아두이노의 라이브러리 디렉토리 (윈도우의 경우 "Documents\Arduino\libraries") 에 폴더채로 넣습니다.
