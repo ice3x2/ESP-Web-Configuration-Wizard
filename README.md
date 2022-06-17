@@ -10,8 +10,7 @@
   * ~LittleFS_esp32 >= 1.0.6~ (ESP32 모듈에 내장된 SPIFFS 를 사용합니다.)
 
 ## 라이브러리 적용방법
-  1. https://github.com/arduino-libraries/NTPClient 로 접속하여 프로젝트를 다운로드 받아 압축을 풀고 아두이노의 라이브러리 디렉토리 (윈도우의 경우 "Documents\Arduino\libraries") 에 폴더채로 넣습니다.
-  2. 이 프로젝트를 다운로드 받아 압축을 풀고 아두이노의 라이브러리 디렉토리에 폴더채로 넣습니다. 
+  * 이 프로젝트를 다운로드 받아 압축을 풀고 아두이노의 라이브러리 디렉토리에 폴더채로 넣습니다. 
 
 ## 사용방법
   * [샘플 코드](https://github.com/ice3x2/ESP8266, ESP32-Web-Configuration-Wizard/blob/master/examples/sample/sample.ino)
