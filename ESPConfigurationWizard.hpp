@@ -1,24 +1,27 @@
-#ifndef ESPCONFIGURATIONWIZARD.HPP
-#define ESPCONFIGURATIONWIZARD.HPP
+#ifndef ESPCONFIGURATIONWIZARD_HPP
+#define ESPCONFIGURATIONWIZARD_HPP
 
-//#define _DEBUG_
+#define _DEBUG_
 
 
 #ifdef ESP8266
 	#include <ESP8266WebServer.h>
-	#include <LittleFS.h>
+	#include <FS.h>
+	#define FS SPIFFS
+	//#include <WifiServer.h>
 #else 
 	#include <WebServer.h>
-	#include <LITTLEFS.h>
+	#include <SPIFFS.h>
 	#include <WiFi.h>
+	#define FS SPIFFS
 	#define WIFILED 32
-#endif 
+#endif
 
 #include <WiFiClient.h>
 #include <WiFiUdp.h>
-#include <WifiServer.h>
+
 #include <PubSubClient.h>
-#include <LittleFS.h>
+
 #include <NTPClient.h>
 #include "Config.hpp"
 #include "Resources.hpp"
@@ -911,15 +914,11 @@ void ESPConfigurationWizard::onHttpRequestGetOption() {
 
 
 bool ESPConfigurationWizard::saveConfig() {
-		#ifdef ESP8266
-		if(!LittleFS.begin()){
-			return false;
+		
+		if(!FS.begin()){
+		   return false;
 		}
-		#else
-		if(!LITTLEFS.begin(true)){
-			return false;
-		}
-		#endif
+		
 
 		char NTPUpdateIntervalBuf[16];
 		char offsetBuf[16];
@@ -931,13 +930,9 @@ bool ESPConfigurationWizard::saveConfig() {
 		ltoa(_config.getTimeOffset(), offsetBuf,10);
 		ltoa(_config.getMQTTPort(), mqttPortBuf,10);
 
-		#ifdef ESP8266
-		LittleFS.remove(CONFIG_FILENAME);
-		File configFile = LittleFS.open(CONFIG_FILENAME, "w");
-		#else 
-		LITTLEFS.remove(CONFIG_FILENAME);
-		File configFile = LITTLEFS.open(CONFIG_FILENAME, "w");
-		#endif
+		FS.remove(CONFIG_FILENAME);
+		File configFile = FS.open(CONFIG_FILENAME, "w");
+
 		
 		if (!configFile) {
 			#ifdef _DEBUG_ 
@@ -1005,15 +1000,9 @@ bool ESPConfigurationWizard::saveConfig() {
 	
 	 
     bool ESPConfigurationWizard::loadConfig() {
-		#ifdef ESP8266
-		if(!LittleFS.begin()){
+		if(!FS.begin()){
 			return false;
 		}
-		#else 
-		if(!LITTLEFS.begin(true)){
-			return false;
-		}
-		#endif
 
 		char buffer[VALUE_BUFFER_SIZE];      
 		memset(buffer, '\0', VALUE_BUFFER_SIZE);
@@ -1021,12 +1010,9 @@ bool ESPConfigurationWizard::saveConfig() {
 		Serial.println("Load file");
 		Serial.println(CONFIG_FILENAME);
 		#endif
-		
-		#ifdef ESP8266
-		File configFile = LittleFS.open(CONFIG_FILENAME, "r");
-		#else 
-		File configFile = LITTLEFS.open(CONFIG_FILENAME, "r");
-		#endif
+
+		File configFile = FS.open(CONFIG_FILENAME, "r");
+
 		
 		
 
