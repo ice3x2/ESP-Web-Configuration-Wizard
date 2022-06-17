@@ -10,11 +10,11 @@
   * ~LittleFS_esp32 >= 1.0.6~ (ESP32 모듈에 내장된 SPIFFS 를 사용합니다.)
 
 ## 라이브러리 적용방법
-  * 이 프로젝트를 다운로드 받아 압축을 풀고 아두이노의 라이브러리 디렉토리에 폴더채로 넣습니다. 
+  * 이 프로젝트를 다운로드 받아 압축을 풀고 아두이노의 라이브러리 디렉토리에 폴더채로 넣습니다. (Download this project, unzip it, and put it in the Arduino library directory as a folder.)
 
-## 사용방법
+## 샘플 코드 (Sample) 
   * [샘플 코드](https://github.com/ice3x2/ESP8266, ESP32-Web-Configuration-Wizard/blob/master/examples/sample/sample.ino)
-### 초기화
+### 초기화 (Initialize)
   ```cpp
   #include "ESPConfigurationWizard.hpp"
 
@@ -58,7 +58,7 @@
    // ... 생략 ...
    
 ```
-### 옵션 추가
+### 옵션 추가 (Set options)
   * 사용자가 옵션 설정 페이지를 통하여 직접 입력 가능한 옵션을 정의할 수 있습니다. 
   * 옵션 필터링을 통하여 올바른 값을 입력할 수 있도록 유도할 수 있습니다. 
 ```cpp
@@ -113,7 +113,7 @@ const char* onFilterOption(const char* name, const char* value) {
   Config* config = _ESPConfigurationWizard.getConfigPt();
   String deviceKey = config->getOption("deviceKey");
 ```
-### 연결
+### 연결 (connect..) 
 ```cpp
  // ... 생략 ...
  void setup() {
@@ -135,7 +135,7 @@ void loop() {
   
 }
 ```
-### 상태 이벤트 받기
+### 상태 이벤트 받기 (Get status events)
   * setup() 함수에서 connect() 를 호출하기 전에 이벤트를 정의해야합니다. 
 ```cpp
 
