@@ -1,7 +1,7 @@
 #ifndef ESPCONFIGURATIONWIZARD_HPP
 #define ESPCONFIGURATIONWIZARD_HPP
 
-#define _DEBUG_
+//#define _DEBUG_
 
 
 #ifdef ESP8266
@@ -93,6 +93,7 @@ class ESPConfigurationWizard {
     uint8_t _mode = MODE_PREPARE;
     int _status = STATUS_PRE;
     
+    bool _setup = false; 
     LinkedList<String> _subscribeList;
 
     IPAddress _timeServerIP;
@@ -134,9 +135,12 @@ class ESPConfigurationWizard {
 
   private :
 
+
+  void setup();
   void setStatus(int status);
   void connectWiFi();
   bool connectMQTT();
+  
   
   bool connectNTP(const char* ntpServer,long timeOffset, unsigned long interval );
   void releaseWebServer();
@@ -188,8 +192,8 @@ class ESPConfigurationWizard {
 
 ESPConfigurationWizard::ESPConfigurationWizard() : _webServer(NULL), _ntpClient(NULL)
 {
-	_mqtt.setClient(_wifiClient);
-  
+   _mqtt.setClient(_wifiClient);
+   
 }
 
 void ESPConfigurationWizard::setOnFilterOption(option_filter filter) {
@@ -233,9 +237,25 @@ bool ESPConfigurationWizard::availableWifi() {
 }
 
 
-void ESPConfigurationWizard::connect() {
+void ESPConfigurationWizard::setup() {
+  if(_setup == true) {
+    return;
+  }
+  #ifdef ESP8266
+	FS.begin();
+  #else 
+	FS.begin(true);
+  #endif
   
+  
+  _setup = true;
+
+}
+
+void ESPConfigurationWizard::connect() {
+  setup();
   if(!loadConfig()) {
+    FS.format();  
     startConfigurationMode();
     return;
   }
@@ -284,6 +304,7 @@ void ESPConfigurationWizard::connect() {
 }
 
 void ESPConfigurationWizard::startConfigurationMode() {
+  setup();
   _mode = MODE_CONFIGURATION;
   setStatus(STATUS_CONFIGURATION);
   initConfigurationMode();
@@ -915,9 +936,6 @@ void ESPConfigurationWizard::onHttpRequestGetOption() {
 
 bool ESPConfigurationWizard::saveConfig() {
 		
-		if(!FS.begin()){
-		   return false;
-		}
 		
 
 		char NTPUpdateIntervalBuf[16];
@@ -1000,9 +1018,7 @@ bool ESPConfigurationWizard::saveConfig() {
 	
 	 
     bool ESPConfigurationWizard::loadConfig() {
-		if(!FS.begin()){
-			return false;
-		}
+
 
 		char buffer[VALUE_BUFFER_SIZE];      
 		memset(buffer, '\0', VALUE_BUFFER_SIZE);
