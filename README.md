@@ -5,6 +5,7 @@
 ![screen](https://user-images.githubusercontent.com/3121298/159404924-a39ab1b0-27f6-430b-9b0e-cbb3a15bd1f5.png)
 
 ## 의존성 (Dependency)
+  * esp32 >= 2.0.3
   * PubSubClient >= 2.8.0
   * NTPClient >= 3.2.0 (https://github.com/arduino-libraries/NTPClient)
   * ~LittleFS_esp32 >= 1.0.6~ (ESP32 모듈에 내장된 SPIFFS 를 사용합니다.)
